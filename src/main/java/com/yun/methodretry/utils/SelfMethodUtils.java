@@ -1,7 +1,6 @@
 package com.yun.methodretry.utils;
 
 import cn.hutool.core.collection.ConcurrentHashSet;
-import cn.hutool.core.util.HashUtil;
 import cn.hutool.json.JSONUtil;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -13,6 +12,7 @@ import org.apache.commons.lang3.reflect.MethodUtils;
 import java.beans.Introspector;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -28,29 +28,30 @@ public class SelfMethodUtils {
     // 缓存：可使用缓存组件（缓存更新，热key等）
     private static volatile ConcurrentHashMap<String,Object> INSTANCE_MAP = null;
     // 传代理对象使用，区分服务调用
-    private static volatile ConcurrentHashSet<Integer> PROXY_SET = null;
+    private static volatile ConcurrentHashSet<String> PROXY_SET = null;
     // 唯一标识：类名+方法名+参数
     private static final String PATTERN = "%s-%s-%s";
 
     public static boolean cheek(MethodCallSpec methodCallSpec) {
-        return getProxySet().contains(getHashCode(methodCallSpec));
+        return getProxySet().contains(getMarkKey(methodCallSpec));
     }
 
     public static void removeProxyMark(MethodCallSpec methodCallSpec) {
-        getProxySet().remove(getHashCode(methodCallSpec));
+        getProxySet().remove(getMarkKey(methodCallSpec));
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     @Data
     public static class MethodCallSpec {
-        public String className;        // 目标类全限定名
-        public String methodName;       // 方法名
-        public String[] paramTypeNames; // 参数类型（全限定名或原始类型名：int/long/...）
-        public Object[] args;           // 参数值（与 paramTypeNames 对应）
-        public String beanName;         // springboot注册的beanName
-        public String extra;            // 额外信息
+        private String className;        // 目标类全限定名
+        private String methodName;       // 方法名
+        private String[] paramTypeNames; // 参数类型（全限定名或原始类型名：int/long/...）
+        private Object[] args;           // 参数值（与 paramTypeNames 对应）
+        private String beanName;         // springboot注册的beanName
+        private LocalDateTime startTime; // 重试开始的时间
+        private String extra;            // 额外信息
     }
-    public static MethodCallSpec buildMethodCallSpec(String beanName,Method method,Object[] args) {
+    public static MethodCallSpec buildMethodCallSpec(String beanName, Method method, Object[] args, long startTime) {
         Objects.requireNonNull(method, "method must not be null");
         String className = method.getDeclaringClass().getName();
         SelfMethodUtils.MethodCallSpec methodCallSpec = new SelfMethodUtils.MethodCallSpec();
@@ -62,11 +63,13 @@ public class SelfMethodUtils {
             beanName = Introspector.decapitalize(className.substring(className.lastIndexOf('.') + 1));
         }
         methodCallSpec.setBeanName(beanName);
+        LocalDateTime now = LocalDateTime.now().plusMinutes(startTime);
+        methodCallSpec.setStartTime(now);
         return methodCallSpec;
     }
 
-    public static MethodCallSpec buildMethodCallSpec(String beanName,Method method,Object[] args,String extra) {
-        SelfMethodUtils.MethodCallSpec methodCallSpec = buildMethodCallSpec(beanName, method, args);
+    public static MethodCallSpec buildMethodCallSpec(String beanName,Method method,Object[] args,String extra,long startTime) {
+        SelfMethodUtils.MethodCallSpec methodCallSpec = buildMethodCallSpec(beanName, method, args, startTime);
         methodCallSpec.setExtra(extra);
         return methodCallSpec;
     }
@@ -118,14 +121,14 @@ public class SelfMethodUtils {
         }
 
         // 4、幂等：标记为已消费
-        int hashCode = getHashCode(spec);
-        getProxySet().add(hashCode);
+        String markKey = getMarkKey(spec);
+        getProxySet().add(markKey);
 
         return MethodUtils.invokeMethod(object,spec.getMethodName(),coercedArgs,paramTypes);
     }
 
-    private static int getHashCode(MethodCallSpec spec) {
-        return HashUtil.jsHash(String.format(PATTERN, spec.className, spec.methodName, JSONUtil.toJsonStr(spec.args)));
+    private static String getMarkKey(MethodCallSpec spec) {
+        return String.format(PATTERN, spec.className, spec.methodName, JSONUtil.toJsonStr(spec.args));
     }
 
     /**
@@ -170,7 +173,7 @@ public class SelfMethodUtils {
         instanceMap.put(className, target);
         return target;
     }
-    private static ConcurrentHashSet<Integer> getProxySet(){
+    private static ConcurrentHashSet<String> getProxySet(){
         if (PROXY_SET == null) {
             synchronized (SelfMethodUtils.class) {
                 if (PROXY_SET == null) {
@@ -317,7 +320,7 @@ public class SelfMethodUtils {
         HelloService helloService = new HelloService();
         Method hello = helloService.getClass().getMethod("hello", HelloDTO.class, String.class);
         Object[] parameters = new Object[]{helloDTO, "test"};
-        SelfMethodUtils.MethodCallSpec methodCallSpec = SelfMethodUtils.buildMethodCallSpec(beanName,hello,parameters);
+        SelfMethodUtils.MethodCallSpec methodCallSpec = SelfMethodUtils.buildMethodCallSpec(beanName,hello,parameters, 0);
         String jsonStr = JSONUtil.toJsonStr(methodCallSpec);
         MethodCallSpec bean = JSONUtil.toBean(jsonStr, MethodCallSpec.class);
         Object o = invokeFromSpec(helloService, bean);

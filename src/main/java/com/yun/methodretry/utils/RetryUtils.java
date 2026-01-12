@@ -15,7 +15,7 @@ public class RetryUtils {
             try {
                 retryFunction.handle();
                 break;
-            } catch (Exception ex) {
+            } catch (Throwable ex) {
                 if (retryCnt == maxTryTime) {
                     log.error("RetryUtil occur some ex {},do max {} retry but still fail.", ex, retryCnt);
                     throw new RuntimeException(ex);
@@ -27,6 +27,6 @@ public class RetryUtils {
         }
     }
     public interface RetryFunction {
-        void handle() throws Exception;
+        void handle() throws Throwable;
     }
 }

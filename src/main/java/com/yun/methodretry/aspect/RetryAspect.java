@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
 
 import javax.annotation.Resource;
 import java.lang.reflect.Method;
-import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -59,45 +59,38 @@ public class RetryAspect {
         String beanName = retryAnnotation.beanName();
         AtomicReference<Throwable> e = new AtomicReference<>();
         try {
-//            res.set(pjp.proceed());
-            // test
-            throw new RuntimeException("hello");
-            // test
+            res.set(pjp.proceed());
         }catch (Throwable throwable){
-            SelfMethodUtils.MethodCallSpec methodCallSpec = SelfMethodUtils.buildMethodCallSpec(beanName,targetMethod,pjp.getArgs());
+            SelfMethodUtils.MethodCallSpec methodCallSpec = SelfMethodUtils.buildMethodCallSpec(beanName,targetMethod,pjp.getArgs(), startTime);
             if (SelfMethodUtils.cheek(methodCallSpec)) {
                 SelfMethodUtils.removeProxyMark(methodCallSpec);
                 throw new RuntimeException("rpcRetry failed");
             }
-            RetryUtils.retry(()->{
-                try {
-//                    res.set(pjp.proceed());
-//                     test
-                    throw new RuntimeException("hello");
-//                     test
-                } catch (Throwable ex) {
-                    log.warn("rpcRetry has exception", ex);
-                    e.set(ex);
-                }
-            },retryTime,0);
+            try {
+                RetryUtils.retry(()->{
+                    try {
+                        res.set(pjp.proceed());
+                    } catch (Throwable ex) {
+                        log.warn("rpcRetry has exception", ex);
+                        throw ex;
+                    }
+                },retryTime,0);
+            }catch (Throwable ex){
+                e.set(ex);
+            }
             // 重试失败落库
             if (Objects.isNull(res.get())) {
-                LocalDateTime now = null;
-                if (startTime > 0) {
-                    now = LocalDateTime.now().plusMinutes(startTime);
-                }
-                RetryDTO retryDTO = getRetryDTO(retryTime, startTime, methodCallSpec);
-                reconsumeService.writeDB(retryDTO);
+                RetryDTO retryDTO = getRetryDTO(retryTime, methodCallSpec);
+                reconsumeService.writeDB(Collections.singletonList(retryDTO));
                 throw new RuntimeException("rpcRetry failed");
             }
         }
         return res.get();
     }
 
-    private static RetryDTO getRetryDTO(int retryTime, int startTime, SelfMethodUtils.MethodCallSpec methodCallSpec) {
+    private static RetryDTO getRetryDTO(int retryTime, SelfMethodUtils.MethodCallSpec methodCallSpec) {
         RetryDTO retryDTO = new RetryDTO();
         retryDTO.setRetryTime(retryTime);
-        retryDTO.setStartTime(startTime);
         retryDTO.setMethodCallSpec(methodCallSpec);
         return retryDTO;
     }

@@ -3,10 +3,14 @@
     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.yun</groupId>
-    <artifactId>method-retryDTO</artifactId>
+    <artifactId>method-retry</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>method-retryDTO</name>
-    <description>Demo project for Spring Boot</description>
+    <packaging>pom</packaging>
+    <name>method-retry</name>
+    <description>method-retry for Spring Boot</description>
+    <modules>
+        <module>retry_core</module>
+    </modules>
     <properties>
         <java.version>1.8</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -29,6 +33,13 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
+        </dependency>
+
 
         <!-- Log4j2 实现 SLF4J 接口 -->
         <dependency>
