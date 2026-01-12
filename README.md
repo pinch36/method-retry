@@ -1,6 +1,13 @@
 # 方法重试框架
-## 使用方法：
+## 使用方法（未推送中心仓库，需要拉取到本地或者部署到私库）：
 ### 引入包retry-starter
+```java
+<dependency>
+    <groupId>com.yun</groupId>
+    <artifactId>retry-starter</artifactId>
+    <version>0.0.1</version>
+</dependency>
+```
 1. 在需要重试的方法加注解
 2. 实现接口ReconsumeService，包含对数据库三个操作
 * 写入（重试失败写入后异步重试）
