@@ -12,6 +12,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @Data
 @ConfigurationProperties(prefix = "spring.retry")
 public class RetryConfig {
-    private Long interval = 5000000L;
+    private Long interval = 300000L;
     private boolean autoRetry = false;
 }
